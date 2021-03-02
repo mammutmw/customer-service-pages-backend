@@ -6,28 +6,44 @@ const cors = require("cors");
 const axios = require("axios");
 const app = express();
 const http = require("http");
+
+const swaggerUi = require("swagger-ui-express"),
+  swaggerDocument = require("./swagger.json");
+
 require("dotenv").config();
 
 const server = http.createServer(app);
 const port = process.env.port || 8080;
 
-app.use(morgan("combined"));
+app.use(morgan("dev"));
 
 app.use(cors());
 
 app.use(bodyParser.json()); // for parsing application/json
 app.use(bodyParser.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
 
-app.get("/access-token", async (req, res) => {
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument)); // Path to view swgger docs
+
+app.get("/app-data", async (req, res) => {
   try {
+    // Fetch access token
     const url = process.env.AUTH_TOKEN_URL;
-    const { data } = await axios.post(url, {
+    const { data: tokenData } = await axios.post(url, {
       client_id: process.env.AUTH_TOKEN_CLIENT_ID,
       client_secret: process.env.AUTH_TOKEN_CLIENT_SECRET,
       audience: process.env.AUTH_TOKEN_AUDIENCE,
       grant_type: process.env.AUTH_TOKEN_GRANT_TYPE
     });
-    res.status(200).json(data);
+
+    // Fetch cms data
+    const cmsUrl =
+      process.env.REDIG_BASE_URL +
+      `/entries?contentType=customerServicePage&market=${req.query.market}&environment=${req.query.environment}`;
+    const { data: cmsData } = await axios.get(cmsUrl, {
+      params: {},
+      headers: { Authorization: "Bearer " + tokenData.access_token }
+    });
+    res.status(200).json(cmsData);
   } catch (error) {
     res.status(500).send(error);
   }
